@@ -1,0 +1,70 @@
+# One command brings up the whole stack:  docker compose up --build
+#   db        PostgreSQL 16 — Tableau Desktop connects here LIVE (localhost:5432)
+#   pipeline  ETL + models: runs on start, then every weekday after market close
+#   api       FastAPI REST + WebSocket live-quote stream + AI analyst (localhost:8000)
+#   web       React front-end served by nginx (localhost:3000)
+name: etf-portfolio
+
+x-python-service: &python-service
+  build:
+    context: .
+    dockerfile: docker/Dockerfile.python
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    POSTGRES_HOST: db
+    POSTGRES_USER: ${POSTGRES_USER:-etf}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-etf}
+    POSTGRES_DB: ${POSTGRES_DB:-etf}
+  depends_on:
+    db:
+      condition: service_healthy
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-etf}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-etf}
+      POSTGRES_DB: ${POSTGRES_DB:-etf}
+      TABLEAU_DB_PASSWORD: ${TABLEAU_DB_PASSWORD:-tableau}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  pipeline:
+    <<: *python-service
+    command: ["python", "-m", "etf_pipeline", "schedule"]
+
+  api:
+    <<: *python-service
+    command: ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  pgdata:

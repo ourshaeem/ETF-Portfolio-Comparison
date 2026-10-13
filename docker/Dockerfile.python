@@ -1,0 +1,17 @@
+# Shared image for the pipeline and API services.
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+COPY db/ db/
+COPY etf_pipeline/ etf_pipeline/
+COPY api/ api/
+
+RUN useradd --create-home appuser
+USER appuser

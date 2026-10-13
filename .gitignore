@@ -1,0 +1,27 @@
+# Secrets
+.env
+*.env.local
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/
+
+# Tableau local artifacts (workbooks *.twb ARE committed; extracts/backups are not)
+*.hyper
+*.tdsx
+*.twbr
+Bookmarks/
+Logs/
